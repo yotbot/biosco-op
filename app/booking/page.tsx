@@ -7,7 +7,7 @@ import { Suspense, useState, useEffect, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { SeatMinimap } from "@/components/SeatMinimap";
 import { CinemaData } from "@/lib/types";
-import { getCinemaHall, getAllHallIds, getHallName } from "@/lib/cinemaHalls";
+import { getCinemaHall, getAllHallIds } from "@/lib/cinemaHalls";
 
 const Cinema3DCanvas = dynamic(
   () => import("@/components/Cinema3D").then((mod) => mod.Cinema3DCanvas),
@@ -37,24 +37,36 @@ function getRowNames(cinemaData: CinemaData): string[] {
   return rowNames;
 }
 
+// Assign a hall to a movie based on its ID
+function getHallForMovie(movieId: string | null): string {
+  const hallIds = getAllHallIds();
+  if (!movieId) return hallIds[0];
+
+  // Use movie ID to deterministically pick a hall
+  const numericId = parseInt(movieId, 10) || movieId.charCodeAt(0);
+  return hallIds[numericId % hallIds.length];
+}
+
 function BookingContent() {
   const searchParams = useSearchParams();
+  const movieId = searchParams.get("movie");
   const time = searchParams.get("time");
   const title = searchParams.get("title") || "Movie";
-  const hallParam = searchParams.get("hall") || "zaal-1";
+
+  // Determine hall based on movie ID
+  const hallId = useMemo(() => getHallForMovie(movieId), [movieId]);
 
   const [selectedSeats, setSelectedSeats] = useState<Set<string>>(new Set());
   const [focusedSeat, setFocusedSeat] = useState<string | null>(null);
   const [cinemaData, setCinemaData] = useState<CinemaData | null>(null);
-  const [currentHall, setCurrentHall] = useState(hallParam);
   const [isClient, setIsClient] = useState(false);
+  const [povMode, setPovMode] = useState(false);
 
   // Initialize cinema data on client side
   useEffect(() => {
     setIsClient(true);
-    const data = getCinemaHall(currentHall);
+    const data = getCinemaHall(hallId);
     setCinemaData(data);
-    setSelectedSeats(new Set()); // Reset selection when hall changes
 
     // Set initial focus to a center seat
     const rows = getRowNames(data);
@@ -63,7 +75,7 @@ function BookingContent() {
       const colCount = data.maps[0].colCount;
       setFocusedSeat(`${middleRow}-S${Math.floor(colCount / 2)}`);
     }
-  }, [currentHall]);
+  }, [hallId]);
 
   const handleSeatSelect = useCallback((seatId: string) => {
     setSelectedSeats((prev) => {
@@ -170,8 +182,6 @@ function BookingContent() {
     );
   }
 
-  const hallIds = getAllHallIds();
-
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
       {/* Header */}
@@ -194,6 +204,8 @@ function BookingContent() {
               </span>
               <span className="text-white/40">·</span>
               <span className="text-white/60">{time}</span>
+              <span className="text-white/40">·</span>
+              <span className="text-white/40">{cinemaData.maps[0].roomName}</span>
             </div>
           </div>
           <Link
@@ -208,28 +220,6 @@ function BookingContent() {
         </div>
       </header>
 
-      {/* Hall Selector */}
-      <div className="bg-zinc-950 border-b border-white/5 px-6 py-3">
-        <div className="max-w-7xl mx-auto flex items-center gap-4 overflow-x-auto">
-          <span className="text-white/40 text-sm whitespace-nowrap">Select Hall:</span>
-          <div className="flex gap-2">
-            {hallIds.map((hallId) => (
-              <button
-                key={hallId}
-                onClick={() => setCurrentHall(hallId)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-                  currentHall === hallId
-                    ? "bg-white text-black"
-                    : "bg-white/10 text-white/60 hover:bg-white/20 hover:text-white"
-                }`}
-              >
-                {getHallName(hallId)}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
       {/* Main Content */}
       <div className="flex-1 flex flex-col lg:flex-row">
         {/* 3D Cinema View */}
@@ -242,8 +232,40 @@ function BookingContent() {
               focusedSeat={focusedSeat}
               onSeatSelect={handleSeatSelect}
               onSeatFocus={handleSeatFocus}
+              povMode={povMode}
+              povSeatId={focusedSeat}
             />
           )}
+
+          {/* POV Toggle Button */}
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            onClick={() => setPovMode(!povMode)}
+            disabled={!focusedSeat}
+            className={`absolute top-6 right-6 px-4 py-2 rounded-full backdrop-blur-xl border transition-all flex items-center gap-2 ${
+              povMode
+                ? "bg-white text-black border-white"
+                : "bg-black/60 text-white border-white/20 hover:border-white/40"
+            } ${!focusedSeat ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            {povMode ? (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                </svg>
+                Overview
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                Seat View
+              </>
+            )}
+          </motion.button>
 
           {/* Minimap */}
           {isClient && (

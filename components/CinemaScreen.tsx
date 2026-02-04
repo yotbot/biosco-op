@@ -1,7 +1,9 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect } from "react";
 import { useVideoTexture } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
+import * as THREE from "three";
 
 interface CinemaScreenProps {
   position: [number, number, number];
@@ -18,19 +20,27 @@ function VideoScreen() {
     }
   );
 
+  // Fix video texture settings to prevent glitching
+  useEffect(() => {
+    if (texture) {
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.generateMipmaps = false;
+      texture.needsUpdate = true;
+    }
+  }, [texture]);
+
+  // Force texture update every frame
+  useFrame(() => {
+    if (texture) {
+      texture.needsUpdate = true;
+    }
+  });
+
   return (
     <mesh>
       <planeGeometry args={[9, 5]} />
       <meshBasicMaterial map={texture} toneMapped={false} />
-    </mesh>
-  );
-}
-
-function FallbackScreen() {
-  return (
-    <mesh>
-      <planeGeometry args={[9, 5]} />
-      <meshBasicMaterial color="#0a0a20" />
     </mesh>
   );
 }
