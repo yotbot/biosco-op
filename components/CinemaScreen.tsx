@@ -38,9 +38,10 @@ function VideoScreen() {
   });
 
   return (
-    <mesh>
+    // Move video plane forward to avoid z-fighting with frame
+    <mesh position={[0, 0, 0.05]}>
       <planeGeometry args={[9, 5]} />
-      <meshBasicMaterial map={texture} toneMapped={false} />
+      <meshBasicMaterial map={texture} toneMapped={false} side={THREE.FrontSide} />
     </mesh>
   );
 }
@@ -48,10 +49,16 @@ function VideoScreen() {
 export function CinemaScreen({ position }: CinemaScreenProps) {
   return (
     <group position={position}>
-      {/* Screen frame */}
-      <mesh position={[0, 0, -0.1]}>
+      {/* Screen frame - moved further back */}
+      <mesh position={[0, 0, -0.15]}>
         <boxGeometry args={[9.6, 5.6, 0.2]} />
         <meshStandardMaterial color="#0a0a0a" />
+      </mesh>
+
+      {/* Black backing behind video to prevent see-through */}
+      <mesh position={[0, 0, -0.01]}>
+        <planeGeometry args={[9.1, 5.1]} />
+        <meshBasicMaterial color="#000000" side={THREE.FrontSide} />
       </mesh>
 
       {/* Screen with video */}
